@@ -1,8 +1,6 @@
 # dragonboard 410c
 
-## Create the recovery partition for dragonboard
-please install git-lfs 
-https://github.com/github/git-lfs/wiki/Installation
+## Create the recovery image for dragonboard
 
 #### Build requirements
 1. Install GO language, setup GOPATH
