@@ -1,0 +1,57 @@
+#! /bin/sh -e
+# initramfs local-premount script for repartition
+
+PREREQ=""
+
+# Output pre-requisites
+prereqs()
+{
+        echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+#set -x
+
+recovery_label="factory-data"
+
+BASE=/run
+mkdir -p $BASE
+
+wait-for-root "LABEL=${recovery_label}" "${ROOTDELAY:-180}" >/dev/null || true
+recovery_part="$(findfs LABEL=${recovery_label})"
+[ -n "$recovery_part" ] || exit 1 # recovery partition not found
+
+syspath="$(dirname $(realpath /sys/class/block/$(basename $recovery_part)))"
+device="$(realpath /dev/block/$(cat $syspath/dev))"
+
+echo "[mount the recovery partition]"
+mkdir -p $BASE/factory_data
+mount -o defaults,ro $recovery_part $BASE/factory_data
+ls $BASE/factory_data # XXX: debug
+
+echo "[mount the os-snap]"
+mkdir -p $BASE/rootfs
+mount -o defaults,ro $BASE/factory_data/ubuntu-core_*.snap $BASE/rootfs
+
+sleep 1
+sync
+newroot="$BASE/rootfs"
+
+echo "[switch_root to ossnap]"
+mount --move /sys /$newroot/sys
+mount --move /proc /$newroot/proc
+mount --move /dev /$newroot/dev
+mount --move /recovery /$newroot/recovery
+
+echo "[chroot execute recovery.bin]"
+/bin/chroot /$newroot /bin/bash || true
+#/bin/chroot /$newroot /recovery/dragon-recovery || true
+
+sync
+reboot
