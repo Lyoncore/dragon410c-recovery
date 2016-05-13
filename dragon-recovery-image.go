@@ -151,8 +151,7 @@ func main() {
 	factory_data := "factory_data"
 	rplib.Shellexec("rm", "-rf", factory_data)
 	rplib.Shellexec("dd", "if=/dev/zero", "of="+factory_data, "bs=32M", "count=24")
-	rplib.Shellexec("mkfs.ext4", "-F", factory_data)
-	rplib.Shellexec("e2label", factory_data, rpoem.FilesystemLabel())
+	rplib.Shellexec("mkfs.vfat", "-n", "factory-data", factory_data)
 
 	log.Println("Create a directory for the factory partition")
 	factoryNewDir := tmpdir + "/factory_new"
@@ -163,9 +162,10 @@ func main() {
 	}
 
 	//TIM: create factory partition
+	log.Println("mount directories for the factory partition")
 	rplib.Shellexec("mount", factory_data, factoryNewDir)
 
-	log.Println("mount directories for the factory partition")
+	//kernel snap
 	KernelDir := tmpdir + "/" + globalOpt.Kernelsnap
 	err = os.Mkdir(KernelDir, 0777)
 	if err != nil {
@@ -175,22 +175,23 @@ func main() {
 	rplib.Shellexec("mount", globalOpt.Kernelsnap, KernelDir)
 
 	log.Println("Copy kernel snaps contents to " + factoryNewDir)
-	rplib.Shellexec("cp", "-af", KernelDir, factoryNewDir)
+	rplib.Shellcmd("(cd " + KernelDir + ";tar -ch --hard-dereference -f - *) | ( cd "+ factoryNewDir + "; tar -xp --hard-dereference -f - )")
 	
-	//add other stuffs
-	//add vmlinuz
+	//kernel snap: add other stuffs
+	log.Println("Copy kernel vmlinux to " + factoryNewDir)
 	rplib.Shellexec("cp", "-fL", KernelDir + "/" + globalOpt.Vmlinux, factoryNewDir)
 
-	//add initrd
+	log.Println("Copy initrd to " + factoryNewDir)
 	initrdImg := tmpdir + "/" + globalOpt.Initrd
 	initrdLzma := initrdImg + ".lzma"
-	rplib.Shellexec("cp", "-fL", KernelDir + "/" + globalOpt.Initrd, initrdLzma)
-	//add dtb
+	rplib.Shellexec("cp", "-f", KernelDir + "/" + globalOpt.Initrd, initrdLzma)
+
 	log.Println("Copy dtb to " + factoryNewDir)
-	rplib.Shellexec("cp", "-af", KernelDir + "/dtbs", factoryNewDir)
+	rplib.Shellexec("cp", "-rpf", KernelDir + "/dtbs", factoryNewDir)
 
 	rplib.Shellexec("umount", KernelDir)
 
+	//gadget snap
 	GadgetDir := tmpdir + "/" + globalOpt.Gadgetsnap
 	err = os.Mkdir(GadgetDir, 0777)
 	if err != nil {
@@ -199,14 +200,9 @@ func main() {
 	}
 	rplib.Shellexec("mount", globalOpt.Gadgetsnap, GadgetDir)
 	log.Println("Copy gadget snaps contents to " + factoryNewDir)
-	rplib.Shellexec("cp", "-af", GadgetDir, factoryNewDir)
-
+	rplib.Shellexec("cp", "-rfL", GadgetDir, factoryNewDir)
 	rplib.Shellexec("umount", GadgetDir)
 	
-	//dragonboard410c 
-	log.Println("Copy system-boot stuff to" + factoryNewDir)
-	rplib.Shellexec("cp", "-af", GadgetDir, factoryNewDir)
-
         SnapsDir := factoryNewDir + "/snaps"
         err = os.Mkdir(SnapsDir, 0777)
         if err != nil {
